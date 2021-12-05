@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+ Copyright (c) 2017 Red Hat, Inc. and/or its affiliates.
+
+ This program and the accompanying materials are made
+ available under the terms of the Eclipse Public License 2.0
+ which is available at https://www.eclipse.org/legal/epl-2.0/
+
+ SPDX-License-Identifier: EPL-2.0
+-->
+
+<job id="csv2db" xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="1.0">
+    <!-- prepare the output table -->
+    <step id="csv2db.step1" next="csv2db.step2">
+        <batchlet ref="jdbcBatchlet">
+            <properties>
+                <property name="url"
+value="jdbc:postgresql://#{jobParameters['db.host']}?:postgresql;/#{jobParameters['db.name']}?:sampledb;"/>
+                <property name="user" value="#{jobParameters['db.user']}?:jberet;"/>
+                <property name="password" value="#{jobParameters['db.password']}?:jberet;"/>
+
+                <property name="sqls" value="
+CREATE TABLE IF NOT EXISTS MOVIES (
+  rank INTEGER NOT NULL PRIMARY KEY,
+  tit  VARCHAR(128),
+  grs  NUMERIC(12, 3),
+  opn  DATE);
+
+DELETE FROM MOVIES"/>
+            </properties>
+        </batchlet>
+    </step>
+
+
+    <!-- read data from online CSV resource and output to db, following chunk processing pattern -->
+    <step id="csv2db.step2">
+        <chunk>
+            <reader ref="csvItemReader">
+                <properties>
+                    <property name="resource" value="https://raw.githubusercontent.com/jberet/jsr352/master/jberet-support/src/test/resources/movies-2012.csv"/>
+                    <property name="beanType" value="java.util.Map"/>
+                    <property name="nameMapping" value="rank,tit,grs,opn"/>
+                    <property name="cellProcessors"
+                        value= "ParseInt; NotNull, StrMinMax(1, 100); DMinMax(1000000, 1000000000); ParseDate('yyyy-MM-dd')"/>
+                </properties>
+            </reader>
+
+            <!-- processor element is optional and is not used here -->
+
+            <writer ref="jdbcItemWriter">
+                <properties>
+                    <property name="url"
+                              value="jdbc:postgresql://#{jobParameters['db.host']}?:postgresql;/#{jobParameters['db.name']}?:sampledb;"/>
+                    <property name="user" value="#{jobParameters['db.user']}?:jberet;"/>
+                    <property name="password" value="#{jobParameters['db.password']}?:jberet;"/>
+
+                    <property name="sql" value="insert into MOVIES (rank,tit,grs,opn) VALUES (?, ?, ?, ?)"/>
+                    <property name="parameterNames" value="rank,tit,grs,opn"/>
+                    <property name="parameterTypes" value="Int,String,Double,Date"/>
+                    <property name="beanType" value="java.util.Map"/>
+                </properties>
+            </writer>
+        </chunk>
+    </step>
+</job>
